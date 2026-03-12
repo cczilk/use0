@@ -53,6 +53,23 @@ pub fn get_thumbnail(state: tauri::State<'_, AppState>, track_id: i64) -> Result
     Ok(track.and_then(|t| t.thumbnail_path))
 }
 
+/// Returns thumbnail as a base64 data URL — works on any OS regardless of path format
+#[tauri::command]
+pub fn get_thumbnail_base64(state: tauri::State<'_, AppState>, track_id: i64) -> Result<Option<String>, String> {
+    let db = state.db.lock().map_err(|_| "DB lock failed")?;
+    let track = db.get_track_by_id(track_id).map_err(|e| e.to_string())?;
+    let Some(thumb_path) = track.and_then(|t| t.thumbnail_path) else {
+        return Ok(None);
+    };
+    let bytes = std::fs::read(&thumb_path).map_err(|e| format!("Read thumb failed: {e}"))?;
+    let ext = std::path::Path::new(&thumb_path)
+        .extension().and_then(|e| e.to_str()).unwrap_or("jpg");
+    let mime = if ext == "png" { "image/png" } else { "image/jpeg" };
+    use base64::{Engine as _, engine::general_purpose};
+    let b64 = general_purpose::STANDARD.encode(&bytes);
+    Ok(Some(format!("data:{mime};base64,{b64}")))
+}
+
 #[tauri::command]
 pub fn delete_track(state: tauri::State<'_, AppState>, track_id: i64) -> Result<(), String> {
     let db = state.db.lock().map_err(|_| "DB lock failed")?;
@@ -239,7 +256,6 @@ pub async fn rescan_artwork(state: tauri::State<'_, AppState>) -> Result<i64, St
     }
     Ok(count)
 }
-
 
 #[tauri::command]
 pub fn remove_from_playlist(

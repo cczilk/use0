@@ -11,17 +11,43 @@
 
   const theme = $derived(themeStore.theme);
 
-  let tab            = $state('tracks');  // 'tracks' | 'albums' | 'artists'
+  let tab            = $state('tracks');
   let editingTrack   = $state(null);
-  let contextMenu    = $state(null);      // { x, y, track }
+  let contextMenu    = $state(null);
   let playlistMenu   = $state(false);
   let selectedAlbum  = $state(null);
   let selectedArtist = $state(null);
 
-  // playlist mode
   let playlistTracks  = $state(null);
   let playlistName    = $state('');
   let loadingPlaylist = $state(false);
+
+  // Base64 artwork cache: trackId -> data URL
+  let artCache = {};  // plain object, NOT $state — updated outside reactive context
+
+  async function loadArtById(trackId) {
+    if (!trackId || trackId in artCache) return;
+    artCache[trackId] = null; // mark loading
+    try {
+      const data = await invoke('get_thumbnail_base64', { trackId });
+      artCache[trackId] = data ?? null;
+    } catch {
+      artCache[trackId] = null;
+    }
+  }
+
+  // Trigger to re-render when cache updates
+  let artCacheTick = $state(0);
+
+  function artUrl(track) {
+    if (!track) return null;
+    // Reading artCacheTick makes this reactive to cache updates
+    void artCacheTick;
+    if (!(track.id in artCache)) {
+      loadArtById(track.id).then(() => { artCacheTick++; });
+    }
+    return artCache[track.id] ?? null;
+  }
 
   $effect(() => {
     if (selectedPlaylist) {
@@ -50,10 +76,10 @@
     const map = new Map();
     for (const t of baseTracks) {
       const key = t.album ?? 'Unknown Album';
-      if (!map.has(key)) map.set(key, { name: key, tracks: [], art: null });
+      if (!map.has(key)) map.set(key, { name: key, tracks: [], artTrack: null });
       const a = map.get(key);
       a.tracks.push(t);
-      if (!a.art && t.thumbnail_path) a.art = t.thumbnail_path;
+      if (!a.artTrack && t.thumbnail_path) a.artTrack = t;
     }
     return [...map.values()].sort((a, b) => a.name.localeCompare(b.name));
   });
@@ -62,10 +88,10 @@
     const map = new Map();
     for (const t of baseTracks) {
       const key = t.artist ?? 'Unknown Artist';
-      if (!map.has(key)) map.set(key, { name: key, count: 0, art: null });
+      if (!map.has(key)) map.set(key, { name: key, count: 0, artTrack: null });
       const a = map.get(key);
       a.count++;
-      if (!a.art && t.thumbnail_path) a.art = t.thumbnail_path;
+      if (!a.artTrack && t.thumbnail_path) a.artTrack = t;
     }
     return [...map.values()].sort((a, b) => a.name.localeCompare(b.name));
   });
@@ -149,6 +175,8 @@
       if (!selected) return;
       const downloadDir = await invoke('get_downloads_dir');
       await invoke('update_track_artwork', { trackId: track.id, imagePath: selected, downloadDir });
+      // Bust cache for this track
+      artCache = { ...artCache, [track.id]: undefined };
       await library.fetchTracks();
       toast.success('Artwork updated');
     } catch {
@@ -171,11 +199,6 @@
     return library.sortOrder === 'asc' ? ' ↑' : ' ↓';
   };
 
-  function artUrl(path) {
-    if (!path) return null;
-    return `asset://localhost/${encodeURIComponent(path).replace(/%2F/g, '/')}`;
-  }
-
   const showTracks = $derived(tab === 'tracks' || !!selectedAlbum || !!selectedArtist);
 </script>
 
@@ -183,12 +206,10 @@
   <!-- svelte-ignore a11y_click_events_have_key_events -->
   <!-- svelte-ignore a11y_no_static_element_interactions -->
   <div style="position:fixed;inset:0;z-index:90" onclick={closeContextMenu}></div>
-
   <div style="position:fixed;left:{contextMenu.x}px;top:{contextMenu.y}px;
               z-index:100;background:{theme.bg};border:1px solid {theme.border};
               border-radius:8px;padding:4px;min-width:170px;
               box-shadow:0 8px 24px rgba(0,0,0,0.6);backdrop-filter:blur(12px)">
-
     {#each [
       { label: '▶  Play',          fn: () => { playTrack(contextMenu.track); closeContextMenu(); } },
       { label: '✏  Edit metadata', fn: () => handleEditMetadata(contextMenu.track) },
@@ -201,8 +222,6 @@
         onmouseleave={(e) => e.currentTarget.style.background = 'transparent'}
       >{item.label}</button>
     {/each}
-
-    <!-- Add to playlist with submenu -->
     <div style="position:relative">
       <button onclick={() => playlistMenu = !playlistMenu}
         style="width:100%;text-align:left;padding:7px 12px;border:none;border-radius:5px;
@@ -215,7 +234,6 @@
         <span>➕  Add to playlist</span>
         <span style="opacity:0.5;font-size:10px">▶</span>
       </button>
-
       {#if playlistMenu}
         <div style="position:absolute;left:100%;top:0;margin-left:4px;
                     background:{theme.bg};border:1px solid {theme.border};
@@ -238,9 +256,7 @@
         </div>
       {/if}
     </div>
-
     <div style="height:1px;background:{theme.border};margin:3px 0"></div>
-
     <button onclick={() => handleDelete(contextMenu.track)}
       style="width:100%;text-align:left;padding:7px 12px;border:none;border-radius:5px;
              background:transparent;cursor:pointer;font-size:12px;color:#ef4444;font-family:inherit"
@@ -252,31 +268,26 @@
 
 <div style="display:flex;flex-direction:column;height:100%;
             background:{theme.bg};border-radius:8px;border:1px solid {theme.border};overflow:hidden">
-
   <div style="padding:10px 16px 0;border-bottom:1px solid {theme.border};flex-shrink:0">
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
       <div style="display:flex;align-items:center;gap:8px">
         {#if canGoBack}
           <button onclick={goBack}
-            style="background:none;border:none;cursor:pointer;color:{theme.textMuted};
-                   font-size:15px;padding:0;line-height:1"
+            style="background:none;border:none;cursor:pointer;color:{theme.textMuted};font-size:15px;padding:0;line-height:1"
             onmouseenter={(e) => e.currentTarget.style.color = theme.primary}
             onmouseleave={(e) => e.currentTarget.style.color = theme.textMuted}
             title="Back">←</button>
         {/if}
-        <span style="color:{theme.primary};font-size:13px;font-weight:bold;
-                     text-transform:uppercase;letter-spacing:0.05em">{headerLabel}</span>
+        <span style="color:{theme.primary};font-size:13px;font-weight:bold;text-transform:uppercase;letter-spacing:0.05em">{headerLabel}</span>
       </div>
       <span style="font-size:11px;color:{theme.textMuted}">{headerCount}</span>
     </div>
-
     {#if !selectedPlaylist && !selectedAlbum && !selectedArtist}
       <div style="display:flex;gap:0">
         {#each [['tracks','Tracks'],['albums','Albums'],['artists','Artists']] as [id, label] (id)}
           <button onclick={() => tab = id}
             style="padding:5px 16px;border:none;cursor:pointer;font-size:12px;font-family:inherit;
-                   font-weight:{tab===id ? 'bold' : 'normal'};
-                   background:transparent;
+                   font-weight:{tab===id ? 'bold' : 'normal'};background:transparent;
                    color:{tab===id ? theme.primary : theme.textMuted};
                    border-bottom:{tab===id ? `2px solid ${theme.primary}` : '2px solid transparent'};
                    transition:all 0.15s">
@@ -285,7 +296,6 @@
         {/each}
       </div>
     {/if}
-
     {#if showTracks}
       <div style="padding:6px 0 8px">
         <input type="text" placeholder="Search tracks..."
@@ -302,7 +312,6 @@
   </div>
 
   {#if showTracks}
-    <!-- Column headers -->
     <div style="display:grid;grid-template-columns:2fr 1fr 1fr 56px;gap:8px;
                 padding:5px 16px;border-bottom:1px solid {theme.border};flex-shrink:0">
       {#each [['title','Title'],['artist','Artist'],['album','Album'],['duration','Time']] as [f, l] (f)}
@@ -314,7 +323,6 @@
         </button>
       {/each}
     </div>
-
     <div style="flex:1;overflow-y:auto">
       {#if library.loading}
         <div style="display:flex;align-items:center;justify-content:center;height:100%;color:{theme.textMuted}">Loading...</div>
@@ -355,7 +363,6 @@
       {/if}
     </div>
 
-  <!-- ── ALBUMS ───────────────────────────────────────────────── -->
   {:else if tab === 'albums'}
     <div style="flex:1;overflow-y:auto;padding:12px">
       {#if albums.length === 0}
@@ -375,13 +382,12 @@
             >
               <div style="aspect-ratio:1;position:relative;overflow:hidden;
                            background:linear-gradient(135deg,{theme.primary}22,{theme.primary}44)">
-                {#if album.art}
-                  <img src={artUrl(album.art)} alt={album.name}
+                {#if artUrl(album.artTrack)}
+                  <img src={artUrl(album.artTrack)} alt={album.name}
                     style="width:100%;height:100%;object-fit:cover;display:block" />
                 {:else}
                   <div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;font-size:32px">💿</div>
                 {/if}
-                <!-- Play overlay on hover -->
                 <!-- svelte-ignore a11y_no_static_element_interactions -->
                 <div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
                              background:rgba(0,0,0,0);opacity:0;transition:all 0.15s"
@@ -406,7 +412,6 @@
       {/if}
     </div>
 
-  <!-- ── ARTISTS ──────────────────────────────────────────────── -->
   {:else if tab === 'artists'}
     <div style="flex:1;overflow-y:auto;padding:8px">
       {#if artists.length === 0}
@@ -426,8 +431,8 @@
             >
               <div style="width:40px;height:40px;border-radius:50%;flex-shrink:0;overflow:hidden;
                            background:linear-gradient(135deg,{theme.primary}33,{theme.primary}66)">
-                {#if artist.art}
-                  <img src={artUrl(artist.art)} alt={artist.name} style="width:100%;height:100%;object-fit:cover" />
+                {#if artUrl(artist.artTrack)}
+                  <img src={artUrl(artist.artTrack)} alt={artist.name} style="width:100%;height:100%;object-fit:cover" />
                 {:else}
                   <div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;font-size:18px">🎤</div>
                 {/if}

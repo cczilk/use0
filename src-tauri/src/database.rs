@@ -120,7 +120,6 @@ impl Database {
         Ok(())
     }
 
-    // UPDATED: This allows external commands to update the thumbnail safely
     pub fn update_track_thumbnail(&self, id: i64, thumbnail_path: Option<String>) -> Result<()> {
         self.conn.execute(
             "UPDATE tracks SET thumbnail_path=?1 WHERE id=?2",
@@ -129,7 +128,6 @@ impl Database {
         Ok(())
     }
 
-    // ── Playlists ─────────────────────────────────────────────────────────────
 
     pub fn create_playlist(&self, name: &str) -> Result<i64> {
         self.conn.execute(

@@ -1,4 +1,3 @@
-<!-- src/lib/components/ThemeSelector.svelte -->
 <script>
   import { themeStore } from '$lib/stores/theme.svelte.js';
   import { Palette } from 'lucide-svelte';

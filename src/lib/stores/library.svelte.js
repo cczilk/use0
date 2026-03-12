@@ -54,7 +54,6 @@ class LibraryStore {
     }
   }
 
-  // Use this for local file imports to ensure art is extracted
   async importLocalFile(filePath, downloadDir) {
     const result = await invoke('import_local_file', { filePath, downloadDir });
     await this.fetchTracks();

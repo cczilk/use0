@@ -1,4 +1,3 @@
-<!-- src/routes/+page.svelte -->
 <script>
   import { onMount } from 'svelte';
   import { player } from '$lib/stores/player.svelte.js';
@@ -36,7 +35,6 @@
 
 <Toaster position="bottom-right" />
 
-<!-- svelte-ignore a11y_no_static_element_interactions -->
 <div use:keyboard style="
   width:100vw; height:100vh;
   background:{t.bg}; color:{t.text};

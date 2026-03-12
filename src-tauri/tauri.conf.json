@@ -1,7 +1,7 @@
 {
-  "productName": "tabi",
+  "productName": "use0",
   "version": "0.1.0",
-  "identifier": "com.tabi.app",
+  "identifier": "com.use0.app",
   "build": {
     "beforeDevCommand": "pnpm dev",
     "beforeBuildCommand": "pnpm build",
@@ -11,7 +11,7 @@
   "app": {
     "windows": [
       {
-        "title": "tabi",
+        "title": "use0",
         "width": 1200,
         "height": 800,
         "minWidth": 900,
@@ -40,7 +40,7 @@
       "icons/128x128.png",
       "icons/128x128@2x.png",
       "icons/icon.icns",
-      "icons/icon.ico"
+      "icons/tabi.svg"
     ]
   }
 }

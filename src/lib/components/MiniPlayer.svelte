@@ -1,4 +1,3 @@
-<!-- src/lib/components/MiniPlayer.svelte -->
 <script>
   import { player } from '$lib/stores/player.svelte.js';
   import { themeStore } from '$lib/stores/theme.svelte.js';
@@ -42,7 +41,6 @@
 
 <div style="flex:1; display:flex; flex-direction:column; overflow:hidden; position:relative">
 
-  <!-- Background art blur -->
   {#if artworkUrl}
     <div style="position:absolute; inset:0; z-index:0; overflow:hidden">
       <img src={artworkUrl} alt="" style="width:100%; height:100%; object-fit:cover;
@@ -152,7 +150,6 @@
     </div>
 
     <!-- Progress bar -->
-    <!-- svelte-ignore a11y_no_static_element_interactions -->
     <div
       role="slider"
       tabindex="0"

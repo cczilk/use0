@@ -60,7 +60,6 @@
 
 <div style="border:1px solid {t.border};border-radius:8px;padding:10px;background:{t.bg};display:flex;flex-direction:column;gap:6px">
 
-  <!-- Header -->
   <div style="display:flex;align-items:center;justify-content:space-between;padding:0 2px">
     <div style="display:flex;align-items:center;gap:6px">
       <ListMusic size={14} style="color:{t.primary}" />
@@ -72,7 +71,6 @@
     </button>
   </div>
 
-  <!-- Create form -->
   {#if showCreateForm}
     <div style="display:flex;flex-direction:column;gap:6px;padding:4px 0">
       <input

@@ -118,7 +118,6 @@ impl Player {
     }
 
     pub fn start_ticker(&self, app: AppHandle) {
-        // State broadcast thread (250ms)
         let app_state = app.clone();
         let p1 = self.clone();
         thread::spawn(move || loop {
@@ -132,7 +131,6 @@ impl Player {
             }
         });
 
-        // Position + autoplay thread (100ms)
         let app_pos = app.clone();
         let p2 = self.clone();
         thread::spawn(move || loop {

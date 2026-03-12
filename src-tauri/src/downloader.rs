@@ -1,11 +1,3 @@
-// src-tauri/src/downloader.rs
-//
-// Wraps yt-dlp as a subprocess — no Rust HTTP client needed.
-// yt-dlp handles all the URL parsing, format selection, and metadata writing.
-//
-// After download, we extract tags with lofty and insert into the DB
-// so the track appears in the library immediately.
-
 use serde::Serialize;
 use std::process::Command;
 use std::path::Path;
@@ -25,16 +17,8 @@ pub async fn download_from_youtube(
     download_dir: String,
 ) -> Result<DownloadResult, String> {
 
-    // Output template — yt-dlp fills in the title
     let output_template = format!("{}/%(title)s.%(ext)s", download_dir);
 
-    // Run yt-dlp
-    // -x            = extract audio only
-    // --audio-format mp3 = convert to mp3
-    // --audio-quality 0  = best quality
-    // --embed-thumbnail  = embed cover art into the mp3
-    // --add-metadata     = write ID3 tags
-    // -o <template>      = output path
     let output = Command::new("yt-dlp")
         .args([
             "-x",
@@ -43,7 +27,7 @@ pub async fn download_from_youtube(
             "--embed-thumbnail",
             "--add-metadata",
             "-o",              &output_template,
-            "--print",         "after_move:filepath", // print final path to stdout
+            "--print",         "after_move:filepath", 
             &url,
         ])
         .output()
@@ -60,7 +44,6 @@ pub async fn download_from_youtube(
         return Err(format!("yt-dlp failed: {stderr}"));
     }
 
-    // Get the output file path from stdout
     let stdout = String::from_utf8_lossy(&output.stdout);
     let file_path = stdout.trim().to_string();
 
@@ -89,7 +72,6 @@ async fn insert_and_return(
             .map_err(|e| e.to_string())?
     };
 
-    // Extract embedded art (yt-dlp embeds thumbnail via --embed-thumbnail)
     if let Some(thumb) = extract_embedded_art(file_path, id, download_dir) {
         let db = state.db.lock().map_err(|_| "DB lock failed")?;
         let _ = db.update_track_thumbnail(id, Some(thumb));

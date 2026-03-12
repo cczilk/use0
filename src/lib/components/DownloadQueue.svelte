@@ -1,4 +1,3 @@
-<!-- src/lib/components/DownloadQueue.svelte -->
 <script>
   import { invoke } from '@tauri-apps/api/core';
   import { open } from '@tauri-apps/plugin-dialog';
@@ -113,7 +112,6 @@
     <span style="color:{t.primary}; font-weight:bold; font-size:13px">Add Music</span>
   </div>
 
-  <!-- Upload files -->
   <button
     onclick={handleUploadFiles}
     disabled={busy}
@@ -132,7 +130,6 @@
     {/if}
   </button>
 
-  <!-- Import folder -->
   <button
     onclick={handleImportFolder}
     disabled={busy}
@@ -154,7 +151,7 @@
     <div style="flex:1; height:1px; background:{t.border}"></div>
   </div>
 
-  <!-- YouTube/SoundCloud download -->
+
   <div style="display:flex; flex-direction:column; gap:8px">
     <input
       type="text"

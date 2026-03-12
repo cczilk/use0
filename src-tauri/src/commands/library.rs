@@ -75,13 +75,12 @@ pub fn format_duration(seconds: i64) -> String {
 
 #[tauri::command]
 pub async fn manual_update_artwork(
-    state: tauri::State<'_, AppState>, // Changed Appstate to AppState
+    state: tauri::State<'_, AppState>, 
     track_id: i64,
     thumbnail_path: String,
 ) -> Result<(), String> {
     let db = state.db.lock().map_err(|_| "DB lock failed")?;
     
-    // We wrap thumbnail_path in Some() to match Option<String>
     db.update_track_thumbnail(track_id, Some(thumbnail_path))
         .map_err(|e| format!("Failed to update artwork in DB: {}", e))?;
 

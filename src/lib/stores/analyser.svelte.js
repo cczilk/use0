@@ -1,8 +1,3 @@
-// analyser.svelte.js
-// Uses fetch via Tauri's asset protocol with readBinaryFile fallback,
-// decodes audio into an OfflineAudioContext for analysis.
-// No hidden <audio> element = no CORS/403 issues.
-
 import { listen } from '@tauri-apps/api/event';
 import { convertFileSrc } from '@tauri-apps/api/core';
 import { readFile } from '@tauri-apps/plugin-fs';
@@ -39,7 +34,6 @@ class AudioAnalyserStore {
     this.#analyser = this.#ctx.createAnalyser();
     this.#analyser.fftSize = 2048;
     this.#analyser.smoothingTimeConstant = 0.8;
-    // silent output — we only want analysis
     const gain = this.#ctx.createGain();
     gain.gain.value = 0;
     this.#analyser.connect(gain);
@@ -53,7 +47,6 @@ class AudioAnalyserStore {
     this.#stopSource();
 
     try {
-      // Read raw bytes via Tauri FS plugin — bypasses asset:// 403
       const bytes = await readFile(filePath);
       const arrayBuffer = bytes.buffer;
       this.#buffer = await this.#ctx.decodeAudioData(arrayBuffer);

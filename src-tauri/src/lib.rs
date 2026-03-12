@@ -5,8 +5,6 @@ pub mod player;
 
 use tauri::Manager;
 
-
-
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     use database::Database;
@@ -20,18 +18,14 @@ pub fn run() {
         .setup(|app| {
             let app_dir = app.path().app_data_dir().expect("Failed to get app data directory");
             std::fs::create_dir_all(&app_dir).expect("Failed to create app data directory");
-
             let db_path = app_dir.join("music_library.db");
             let db = Database::new(db_path).expect("Failed to initialize database");
             app.manage(AppState { db: Mutex::new(db) });
-
             let downloads_dir = app_dir.join("downloads");
             std::fs::create_dir_all(&downloads_dir).expect("Failed to create downloads directory");
-
             let player = Player::new(downloads_dir.clone()).expect("Failed to initialise audio engine");
             player.start_ticker(app.handle().clone());
             app.manage(player);
-
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
@@ -40,6 +34,7 @@ pub fn run() {
             commands::get_all_tracks,
             commands::get_track_info,
             commands::get_thumbnail,
+            commands::get_thumbnail_base64,
             commands::delete_track,
             commands::import_local_file,
             commands::import_folder,
@@ -72,14 +67,15 @@ pub fn run() {
         .expect("error while running tauri application");
 }
 
-
 #[tauri::command]
 fn get_config_dir(app_handle: tauri::AppHandle) -> Result<String, String> {
     let app_dir = app_handle.path().app_data_dir().map_err(|e| e.to_string())?;
     Ok(app_dir.to_string_lossy().to_string())
 }
+
 #[tauri::command]
 fn get_downloads_dir(app_handle: tauri::AppHandle) -> Result<String, String> {
-    let app_dir = app_handle.path().app_data_dir().map_err(|e| format!("Failed to get app data directory: {}", e))?;
+    let app_dir = app_handle.path().app_data_dir()
+        .map_err(|e| format!("Failed to get app data directory: {}", e))?;
     Ok(app_dir.join("downloads").to_string_lossy().to_string())
 }

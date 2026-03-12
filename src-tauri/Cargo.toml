@@ -29,6 +29,6 @@ walkdir = "2.5.0"
 base64 = "0.22.1"
 
 tauri-plugin-dialog = "2"
-rusqlite = "0.38.0"
+rusqlite = { version = "0.31.0", features = ["bundled"] }
 fastrand = "2.3.0"
 tauri-plugin-fs = "2.4.5"

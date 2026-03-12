@@ -1,4 +1,3 @@
-// src/lib/stores/theme.svelte.js
 
 const THEMES = {
   dark:   { primary: '#4ade80', bg: 'rgba(10,10,10,0.95)',   bgMuted: 'rgba(255,255,255,0.05)', border: 'rgba(74,222,128,0.2)',  text: '#e5e7eb', textMuted: '#6b7280' },
@@ -8,7 +7,6 @@ const THEMES = {
 };
 
 class ThemeStore {
-  // Guard localStorage access — not available during SSR/module analysis
   #name = $state(
     typeof localStorage !== 'undefined'
       ? (localStorage.getItem('tabi_theme') || 'dark')

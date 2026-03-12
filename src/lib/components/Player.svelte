@@ -1,4 +1,3 @@
-<!-- src/lib/components/Player.svelte -->
 <script>
   import { player } from '$lib/stores/player.svelte.js';
   import { themeStore } from '$lib/stores/theme.svelte.js';
@@ -6,7 +5,6 @@
   let { compact = false, showVolume = false } = $props();
   const theme = $derived(themeStore.theme);
 
-  // Optimistic seek — update UI instantly, send to Rust only on release
   let dragging      = $state(false);
   let dragPercent   = $state(0);
 
@@ -50,7 +48,6 @@
 
   <!-- Progress bar -->
   <div>
-    <!-- svelte-ignore a11y_no_static_element_interactions -->
     <div
       role="slider"
       tabindex="0"
@@ -82,7 +79,6 @@
     </div>
   </div>
 
-  <!-- Controls -->
   <div style="display:flex; align-items:center; justify-content:center; gap:{compact ? '10px' : '20px'}">
     <button
       onclick={() => player.prev()}

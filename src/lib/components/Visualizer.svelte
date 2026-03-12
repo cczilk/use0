@@ -1,4 +1,3 @@
-<!-- src/lib/components/Visualizer.svelte -->
 <script>
   import { onMount } from 'svelte';
   import { themeStore } from '$lib/stores/theme.svelte.js';

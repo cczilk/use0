@@ -1,7 +1,7 @@
 <script>
-  import { Sparkles, Upload, Trash2 } from 'lucide-svelte';
+  import { Sparkles, Upload } from 'lucide-svelte';
   import { open } from '@tauri-apps/plugin-dialog';
-  import { convertFileSrc } from '@tauri-apps/api/core';
+  import { invoke } from '@tauri-apps/api/core';
   import { player } from '$lib/stores/player.svelte.js';
   import { themeStore } from '$lib/stores/theme.svelte.js';
   import Player from './Player.svelte';
@@ -20,22 +20,15 @@
   let customVideoPath    = $state(null);
   let particlesCanvas    = $state(null);
   let artworkEl          = $state(null);
+  let artworkUrl         = $state(null);
 
-  // DEBUG
-  $effect(() => { console.log('[art] track:', player.currentTrack?.thumbnailPath, 'url:', player.currentTrack?.thumbnailPath ? convertFileSrc(player.currentTrack.thumbnailPath) : null); });
-  const artworkUrl = $derived(
-    player.currentTrack?.thumbnailPath
-      ? convertFileSrc(player.currentTrack.thumbnailPath)
-      : null
-  );
-
-  // DEBUG EFFECT: Check console to see if paths are valid
+  // Load artwork as base64 whenever track changes
   $effect(() => {
-    if (player.currentTrack) {
-      console.log("--- Track Debug ---");
-      console.log("Raw Path:", player.currentTrack.thumbnailPath);
-      console.log("Asset URL:", artworkUrl);
-    }
+    const id = player.currentTrack?.id;
+    if (!id) { artworkUrl = null; return; }
+    invoke('get_thumbnail_base64', { trackId: id })
+      .then(data => { artworkUrl = data ?? null; })
+      .catch(() => { artworkUrl = null; });
   });
 
   const visualizerStyle = $derived.by(() => {
@@ -90,7 +83,13 @@
   async function handleUploadVideo() {
     const selected = await open({ filters: [{ name: 'Video', extensions: ['mp4','webm','gif'] }] });
     if (selected) {
-      customVideoPath = convertFileSrc(selected);
+      // Read as base64 so it works on any OS (no asset:// needed)
+      const { readFile } = await import('@tauri-apps/plugin-fs');
+      const bytes = await readFile(selected);
+      const ext = selected.split('.').pop().toLowerCase();
+      const mime = ext === 'gif' ? 'image/gif' : ext === 'webm' ? 'video/webm' : 'video/mp4';
+      const b64 = btoa(String.fromCharCode(...new Uint8Array(bytes)));
+      customVideoPath = `data:${mime};base64,${b64}`;
       selectedVisualizer = 'custom';
       showVisualizerMenu = false;
     }
@@ -117,7 +116,7 @@
     <div style="padding:20px; flex-shrink:0;">
       <div style="width:100%; aspect-ratio:1/1; position:relative; border-radius:16px; overflow:hidden; border:1px solid {theme.border}; box-shadow:0 12px 40px rgba(0,0,0,0.4)">
         {#if artworkUrl}
-          <img src={artworkUrl} alt="art" style="width:100%; height:100%; object-fit:cover;" onerror={(e) => console.error("Img failed to load:", artworkUrl)} />
+          <img src={artworkUrl} alt="art" style="width:100%; height:100%; object-fit:cover;" />
         {:else}
           <div style="width:100%; height:100%; display:flex; align-items:center; justify-content:center; background:{theme.bgMuted}; font-size:40px;">🎵</div>
         {/if}
@@ -127,12 +126,21 @@
     <div bind:this={artworkEl} style="flex:1; margin:0 12px 12px 12px; position:relative; border-radius:20px; border:1px solid {theme.border}; background:{theme.bgMuted}">
       <div style="position:absolute; inset:0; z-index:0; pointer-events:none; border-radius:20px; overflow:hidden;">
         {#if customVideoPath && selectedVisualizer === 'custom'}
-          <img src={customVideoPath} alt="bg" style="width:100%; height:100%; object-fit:cover; opacity:0.3;" />
+          {#if customVideoPath.includes('data:video')}
+            <video src={customVideoPath} autoplay loop muted playsinline
+              style="width:100%; height:100%; object-fit:cover; opacity:0.4;"></video>
+          {:else}
+            <img src={customVideoPath} alt="bg" style="width:100%; height:100%; object-fit:cover; opacity:0.4;" />
+          {/if}
         {:else if artworkUrl}
           <img src={artworkUrl} alt="blur" style="width:100%; height:100%; object-fit:cover; filter:blur(30px) brightness(0.4); opacity:0.6;" />
         {/if}
-        {#if selectedVisualizer === 'particles'}<canvas bind:this={particlesCanvas} style="position:absolute; inset:0; width:100%; height:100%;" />{/if}
-        {#if visualizerStyle}<div style="position:absolute; inset:0; {visualizerStyle} opacity:0.4;" />{/if}
+        {#if selectedVisualizer === 'particles'}
+          <canvas bind:this={particlesCanvas} style="position:absolute; inset:0; width:100%; height:100%;"></canvas>
+        {/if}
+        {#if visualizerStyle}
+          <div style="position:absolute; inset:0; {visualizerStyle} opacity:0.4;"></div>
+        {/if}
       </div>
 
       <div style="position:relative; z-index:1; height:100%; display:flex; flex-direction:column; padding:20px;">
@@ -144,12 +152,14 @@
               <Sparkles size={14} />
             </button>
             {#if showVisualizerMenu}
+              <!-- svelte-ignore a11y_click_events_have_key_events -->
+              <!-- svelte-ignore a11y_no_static_element_interactions -->
               <div onclick={() => showVisualizerMenu = false} style="position:fixed; inset:0; z-index:99;"></div>
               <div style="position:absolute; bottom:100%; right:0; margin-bottom:10px; background:{theme.bg}; border:1px solid {theme.border}; border-radius:12px; padding:6px; min-width:160px; box-shadow:0 8px 32px rgba(0,0,0,0.8); z-index:100">
                 <div style="font-size:9px; font-weight:bold; color:{theme.textMuted}; padding:4px 10px; text-transform:uppercase;">Visualizer</div>
                 {#each DEFAULT_VISUALIZERS as v}
-                  <button onclick={() => {selectedVisualizer=v.id; showVisualizerMenu=false;}} 
-                    style="width:100%; text-align:left; background:{selectedVisualizer===v.id ? theme.primary+'33' : 'transparent'}; border:none; color:{selectedVisualizer===v.id ? theme.primary : theme.text}; padding:8px 10px; border-radius:6px; font-size:12px; cursor:pointer; transition: background 0.2s;">
+                  <button onclick={() => {selectedVisualizer=v.id; showVisualizerMenu=false;}}
+                    style="width:100%; text-align:left; background:{selectedVisualizer===v.id ? theme.primary+'33' : 'transparent'}; border:none; color:{selectedVisualizer===v.id ? theme.primary : theme.text}; padding:8px 10px; border-radius:6px; font-size:12px; cursor:pointer;">
                     {v.name}
                   </button>
                 {/each}
@@ -170,10 +180,10 @@
         <div style="margin-top:auto; display:flex; flex-direction:column; gap:20px;">
           <Player compact={true} showVolume={true} />
           <div style="display:flex; gap:8px;">
-            <button onclick={() => player.toggleShuffle()} style="flex:1; background:rgba(255,255,255,0.05); border:1px solid {theme.border}; border-radius:10px; padding:10px; color:{player.shuffle ? theme.primary : theme.textMuted}; font-size:11px; font-weight:bold; cursor:pointer; transition: all 0.2s;">
+            <button onclick={() => player.toggleShuffle()} style="flex:1; background:rgba(255,255,255,0.05); border:1px solid {theme.border}; border-radius:10px; padding:10px; color:{player.shuffle ? theme.primary : theme.textMuted}; font-size:11px; font-weight:bold; cursor:pointer;">
               SHUFFLE: {player.shuffle ? 'ON' : 'OFF'}
             </button>
-            <button onclick={() => player.toggleAutoplay()} style="flex:1; background:rgba(255,255,255,0.05); border:1px solid {theme.border}; border-radius:10px; padding:10px; color:{player.autoplay ? theme.primary : theme.textMuted}; font-size:11px; font-weight:bold; cursor:pointer; transition: all 0.2s;">
+            <button onclick={() => player.toggleAutoplay()} style="flex:1; background:rgba(255,255,255,0.05); border:1px solid {theme.border}; border-radius:10px; padding:10px; color:{player.autoplay ? theme.primary : theme.textMuted}; font-size:11px; font-weight:bold; cursor:pointer;">
               AUTO: {player.autoplay ? 'ON' : 'OFF'}
             </button>
           </div>

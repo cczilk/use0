@@ -3,11 +3,9 @@ use std::path::Path;
 #[derive(Debug, Clone)]
 pub struct BpmResult {
     pub bpm: f32,
-    pub energy: f32,   // RMS energy 0.0–1.0, used for visualizer intensity
+    pub energy: f32,   
 }
 
-/// Detect BPM from an audio file.
-/// `sample_secs` — how many seconds of audio to analyse (20s is plenty, fast).
 pub fn detect_bpm_from_file(path: &str, sample_secs: f32) -> Result<BpmResult, String> {
     use rodio::Decoder;
     use std::fs::File;
@@ -18,7 +16,7 @@ pub fn detect_bpm_from_file(path: &str, sample_secs: f32) -> Result<BpmResult, S
     let decoder = Decoder::new(BufReader::new(file))
         .map_err(|e| format!("BPM: decode error: {e}"))?;
 
-    let sample_rate = 44100u32; // we'll resample mentally; rodio gives us whatever
+    let sample_rate = 44100u32; 
     let max_samples = (sample_secs * sample_rate as f32) as usize;
 
     let samples: Vec<f32> = decoder
@@ -66,7 +64,6 @@ fn detect_bpm(samples: &[f32], sample_rate: f32) -> f32 {
         return 120.0;
     }
 
-    // ── 3. Peak-picking ───────────────────────────────────────────────────
     let threshold = energies.iter().cloned().fold(0.0f32, f32::max) * 0.35;
     let min_gap_frames = (0.2 / (window as f32 / 2.0 / sample_rate)) as usize;
 
@@ -96,7 +93,6 @@ fn detect_bpm(samples: &[f32], sample_rate: f32) -> f32 {
         .map(|w| (w[1] - w[0]) as f32 * frame_secs)
         .collect();
 
-    // Histogram over 40–200 BPM range (0.3s–1.5s intervals)
     let bpm_min = 40.0f32;
     let bpm_max = 200.0f32;
     let bins = 160usize;
@@ -108,7 +104,6 @@ fn detect_bpm(samples: &[f32], sample_rate: f32) -> f32 {
             let bin = ((bpm - bpm_min) / (bpm_max - bpm_min) * bins as f32) as usize;
             let bin = bin.min(bins - 1);
             histogram[bin] += 1;
-            // Also weight harmonics (doublings/halvings)
             let half = bin / 2;
             if half > 0 { histogram[half] += 1; }
             let double = (bin * 2).min(bins - 1);
@@ -119,11 +114,10 @@ fn detect_bpm(samples: &[f32], sample_rate: f32) -> f32 {
     let peak_bin = histogram.iter().enumerate()
         .max_by_key(|(_, &v)| v)
         .map(|(i, _)| i)
-        .unwrap_or(80); // default 120 BPM bin
+        .unwrap_or(80); 
 
     let raw_bpm = bpm_min + peak_bin as f32 / bins as f32 * (bpm_max - bpm_min);
 
-    // ── 5. Octave-fold to 60–200 BPM ──────────────────────────────────────
     let mut bpm = raw_bpm;
     while bpm < 60.0  { bpm *= 2.0; }
     while bpm > 200.0 { bpm /= 2.0; }
