@@ -1,27 +1,32 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
-  "description": "Default permissions for the main window",
+  "description": "Capability for the main window",
   "windows": ["main"],
   "permissions": [
     "core:default",
-    "core:path:default",
-    "core:event:default",
-    "core:window:default",
-    "core:webview:default",
-    "core:app:default",
-    "core:resources:default",
-    "core:image:default",
+    "core:window:allow-minimize",
+    "core:window:allow-maximize",
+    "core:window:allow-unmaximize",
+    "core:window:allow-close",
+    "core:window:allow-is-maximized",
+    "core:window:allow-toggle-maximize",
+    "core:window:allow-start-dragging",
+    "core:window:allow-set-focus",
     "opener:default",
     "dialog:default",
-    "fs:default",
     "fs:read-files",
     {
       "identifier": "fs:allow-read-file",
       "allow": [
         { "path": "$HOME/**" },
+        { "path": "/home/**" },
+        { "path": "/tmp/**" },
         { "path": "$APPDATA/**" },
-        { "path": "$APPCACHE/**" }
+        { "path": "$DOWNLOAD/**" },
+        { "path": "$PICTURE/**" },
+        { "path": "$DOCUMENT/**" },
+        { "path": "$MUSIC/**" }
       ]
     }
   ]

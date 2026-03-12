@@ -1,7 +1,7 @@
 <script>
   import { Sparkles, Upload } from 'lucide-svelte';
   import { open } from '@tauri-apps/plugin-dialog';
-  import { invoke } from '@tauri-apps/api/core';
+  import { invoke, convertFileSrc } from '@tauri-apps/api/core';
   import { player } from '$lib/stores/player.svelte.js';
   import { themeStore } from '$lib/stores/theme.svelte.js';
   import Player from './Player.svelte';
@@ -18,6 +18,7 @@
   let showVisualizerMenu = $state(false);
   let selectedVisualizer = $state('none');
   let customVideoPath    = $state(null);
+  let customVideoMime    = $state('image/gif');
   let particlesCanvas    = $state(null);
   let artworkEl          = $state(null);
   let artworkUrl         = $state(null);
@@ -83,13 +84,10 @@
   async function handleUploadVideo() {
     const selected = await open({ filters: [{ name: 'Video', extensions: ['mp4','webm','gif'] }] });
     if (selected) {
-      // Read as base64 so it works on any OS (no asset:// needed)
-      const { readFile } = await import('@tauri-apps/plugin-fs');
-      const bytes = await readFile(selected);
       const ext = selected.split('.').pop().toLowerCase();
-      const mime = ext === 'gif' ? 'image/gif' : ext === 'webm' ? 'video/webm' : 'video/mp4';
-      const b64 = btoa(String.fromCharCode(...new Uint8Array(bytes)));
-      customVideoPath = `data:${mime};base64,${b64}`;
+      customVideoMime = ext === 'gif' ? 'image/gif' : ext === 'webm' ? 'video/webm' : 'video/mp4';
+      // convertFileSrc creates a proper asset:// URL Tauri's webview can serve
+      customVideoPath = convertFileSrc(encodeURI(selected));
       selectedVisualizer = 'custom';
       showVisualizerMenu = false;
     }
@@ -126,7 +124,7 @@
     <div bind:this={artworkEl} style="flex:1; margin:0 12px 12px 12px; position:relative; border-radius:20px; border:1px solid {theme.border}; background:{theme.bgMuted}">
       <div style="position:absolute; inset:0; z-index:0; pointer-events:none; border-radius:20px; overflow:hidden;">
         {#if customVideoPath && selectedVisualizer === 'custom'}
-          {#if customVideoPath.includes('data:video')}
+          {#if customVideoMime.startsWith('video/')}
             <video src={customVideoPath} autoplay loop muted playsinline
               style="width:100%; height:100%; object-fit:cover; opacity:0.4;"></video>
           {:else}
