@@ -1,241 +1,151 @@
-<script lang="ts">
-  import { invoke } from "@tauri-apps/api/core";
-  import { onMount } from "svelte";
+<!-- src/routes/+page.svelte -->
+<script>
+  import { onMount } from 'svelte';
+  import { player } from '$lib/stores/player.svelte.js';
+  import { library } from '$lib/stores/library.svelte.js';
+  import { themeStore } from '$lib/stores/theme.svelte.js';
+  import { audioAnalyser } from '$lib/stores/analyser.svelte.js';
+  import { keyboard } from '$lib/actions/keyboard.js';
+  import Library from '$lib/components/Library.svelte';
+  import NowPlaying from '$lib/components/NowPlaying.svelte';
+  import PlaylistPanel from '$lib/components/PlaylistPanel.svelte';
+  import Visualizer from '$lib/components/Visualizer.svelte';
+  import DownloadQueue from '$lib/components/DownloadQueue.svelte';
+  import Equalizer from '$lib/components/Equalizer.svelte';
+  import ThemeSelector from '$lib/components/ThemeSelector.svelte';
+  import { Toaster } from 'svelte-sonner';
+  import TitleBar from '$lib/components/TitleBar.svelte';
+  import MiniPlayer from '$lib/components/MiniPlayer.svelte';
 
-  // State Runes
-  let folderPath = $state("/home/cc/Downloads/music"); 
-  let library = $state<any[]>([]);
-  let loading = $state(false);
-  let currentSong = $state<any>(null);
-  let isPaused = $state(false);
-  let volume = $state(70);
-  let currentView = $state("albums");
+  const t = $derived(themeStore.theme);
+
+  let appReady         = $state(false);
+  let selectedPlaylist = $state(null);
+  let showEQ           = $state(false);
+  let miniMode         = $state(false);
 
   onMount(async () => {
-    try {
-      const saved = await invoke<any[]>("load_library");
-      if (saved && saved.length > 0) {
-        library = saved;
-      } else {
-        // No saved library, auto-scan default folder
-        loading = true;
-        try {
-          const result = await invoke<any[]>("scan_library", { path: folderPath });
-          library = result;
-          await invoke("save_library", { songs: result });
-        } catch (e) {
-          console.log("Auto-scan failed: " + e);
-        } finally {
-          loading = false;
-        }
-      }
-    } catch (e) {
-      console.log("No saved library, starting fresh");
-    }
+    await Promise.all([player.init(), library.init(), audioAnalyser.init()]);
+    appReady = true;
   });
 
-  // --- Grouping Logic ---
-  let albums = $derived(
-    library.reduce((acc, song) => {
-      const name = song.album || "Unknown Album";
-      if (!acc[name]) acc[name] = [];
-      acc[name].push(song);
-      return acc;
-    }, {} as Record<string, any[]>)
-  );
-
-  let artists = $derived(
-    library.reduce((acc, song) => {
-      const name = song.artist || "Unknown Artist";
-      if (!acc[name]) acc[name] = [];
-      acc[name].push(song);
-      return acc;
-    }, {} as Record<string, any[]>)
-  );
-
-  let displayGroups = $derived(currentView === "albums" ? albums : artists);
-
-  // --- Actions ---
-  async function startScan() {
-    if (!folderPath) return alert("Please enter a folder path!");
-    loading = true;
-    try {
-      const result = await invoke<any[]>("scan_library", { path: folderPath });
-      library = result;
-      await invoke("save_library", { songs: result });
-    } catch (e) {
-      alert("Scan failed: " + e);
-    } finally {
-      loading = false;
-    }
-  }
-
-  async function playSong(song: any) {
-    currentSong = song;
-    isPaused = false;
-    await invoke("play_song", { path: song.path });
-  }
-
-  async function togglePlay() {
-    isPaused = await invoke("toggle_pause");
-  }
-
-  async function updateVolume() {
-    await invoke("set_volume", { volume: volume / 100 });
+  async function handleDownloadComplete() {
+    await library.fetchTracks();
   }
 </script>
 
-<div class="app-container">
-  <aside class="sidebar">
-    <h2 class="logo">Tabi Rust</h2>
-    
-    <div class="search-box">
-      <input bind:value={folderPath} placeholder="Music directory..." />
-      <button class="btn-primary" onclick={startScan} disabled={loading}>
-        {loading ? "Scanning..." : "Sync Library"}
-      </button>
+<Toaster position="bottom-right" />
+
+<!-- svelte-ignore a11y_no_static_element_interactions -->
+<div use:keyboard style="
+  width:100vw; height:100vh;
+  background:{t.bg}; color:{t.text};
+  font-family:'JetBrains Mono','Fira Code',ui-monospace,monospace;
+  display:flex; flex-direction:column; overflow:hidden; user-select:none;
+">
+
+  <TitleBar />
+
+  {#if !appReady}
+    <!-- Boot screen -->
+    <div style="flex:1; display:flex; align-items:center; justify-content:center; flex-direction:column; gap:16px">
+      <div style="font-size:32px">🎵</div>
+      <div style="font-size:14px; color:{t.primary}">Loading Tabi...</div>
+      <div style="width:200px; height:2px; background:rgba(255,255,255,0.1); border-radius:1px; overflow:hidden">
+        <div style="height:100%; background:{t.primary}; animation:loading 1.2s ease-in-out infinite" />
+      </div>
     </div>
+  {:else}
 
-    <nav class="nav">
-      <div class="nav-label">YOUR LIBRARY</div>
-      <button 
-        class="nav-link" 
-        class:active={currentView === "albums"} 
-        onclick={() => currentView = "albums"}
-      >
-        Albums
-      </button>
-      <button 
-        class="nav-link" 
-        class:active={currentView === "artists"} 
-        onclick={() => currentView = "artists"}
-      >
-        Artists
-      </button>
-    </nav>
-  </aside>
+    <!-- ── Top bar ── -->
+    <header style="
+      display:flex; align-items:center; justify-content:space-between;
+      padding:0 16px; height:48px; flex-shrink:0; gap:12px;
+      background:linear-gradient(135deg, {t.bg} 0%, {t.primary}0d 100%);
+      border-bottom:1px solid {t.primary}33;
+    ">
+<!-- Right controls -->
+      <div style="display:flex; align-items:center; gap:4px">
+        <button onclick={() => miniMode = !miniMode}
+          title={miniMode ? 'Full view' : 'Mini player'}
+          style="padding:5px 10px; border-radius:6px; font-size:11px; font-weight:bold; border:none; cursor:pointer; font-family:inherit;
+                 background:{miniMode ? t.primary : t.primary+'1a'}; color:{miniMode ? '#000' : t.primary}">
+          ⛶
+        </button>
+        <button onclick={() => showEQ = !showEQ}
+          style="padding:5px 10px; border-radius:6px; font-size:11px; font-weight:bold; border:none; cursor:pointer; font-family:inherit;
+                 background:{showEQ ? t.primary : t.primary+'1a'}; color:{showEQ ? '#000' : t.primary}">
+          🎚
+        </button>
+        <ThemeSelector />
+      </div>
+    </header>
 
-  <main class="content">
-    {#if loading}
-      <div class="empty-state">
-        <p>Scanning your music library...</p>
-      </div>
-    {:else if library.length === 0}
-      <div class="empty-state">
-        <p>Your library is empty. Sync a folder to begin.</p>
-      </div>
+    <!-- ── Main 3-column layout ── -->
+    {#if miniMode}
+      <MiniPlayer onExpand={() => miniMode = false} />
+    {:else}
+    <div style="flex:1; display:flex; overflow:hidden; min-height:0">
+
+      <!-- LEFT SIDEBAR: Add Music + Playlists -->
+      <aside style="
+        width:280px; flex-shrink:0;
+        display:flex; flex-direction:column; gap:8px;
+        padding:8px; border-right:1px solid {t.border};
+        overflow-y:auto;
+      ">
+        <DownloadQueue onDownloadComplete={handleDownloadComplete} />
+        <PlaylistPanel
+          {selectedPlaylist}
+          onPlaylistSelect={(id) => selectedPlaylist = id}
+          onBackToLibrary={() => selectedPlaylist = null}
+        />
+        {#if showEQ}
+          <Equalizer />
+        {/if}
+      </aside>
+
+      <!-- CENTER: Library (top) + Visualizer (bottom) -->
+      <main style="flex:1; min-width:0; display:flex; flex-direction:column; overflow:hidden">
+
+        <!-- Library takes most of the space -->
+        <div style="flex:1; min-height:0; padding:8px 8px 4px 8px; overflow:hidden">
+          <Library playlistMode={!!selectedPlaylist} onBackToLibrary={() => selectedPlaylist = null} />
+        </div>
+
+        <!-- Visualizer pinned at bottom of center column -->
+        <div style="height:220px; flex-shrink:0; padding:4px 8px 8px 8px">
+          <Visualizer
+            isPlaying={player.isPlaying}
+            getFrequencyData={() => audioAnalyser.getFrequencyData()}
+            getTimeDomainData={() => audioAnalyser.getTimeDomainData()}
+          />
+        </div>
+      </main>
+
+      <!-- RIGHT PANEL: NowPlaying -->
+      <aside style="
+        width:320px; flex-shrink:0;
+        border-left:1px solid {t.border};
+        overflow:hidden; display:flex; flex-direction:column;
+      ">
+        <NowPlaying />
+      </aside>
+
+    </div>
+  {/if}
     {/if}
-
-    {#each Object.entries(displayGroups) as [groupName, songs]}
-      <div class="album-group">
-        <h3 class="group-title">{groupName}</h3>
-        <div class="song-grid">
-          {#each songs as song}
-            <button 
-              class="song-card" 
-              onclick={() => playSong(song)} 
-              class:active={currentSong?.path === song.path}
-            >
-              {#if song.cover}
-                <img src={song.cover} alt="art" />
-              {:else}
-                <div class="no-cover">♪</div>
-              {/if}
-              <div class="info">
-                <span class="title">{song.title}</span>
-                <span class="artist">{song.artist}</span>
-              </div>
-            </button>
-          {/each}
-        </div>
-      </div>
-    {/each}
-  </main>
-
-  <footer class="player-bar">
-    <div class="current-track">
-      {#if currentSong}
-        <img src={currentSong.cover} alt="" class="mini-art" />
-        <div class="track-meta">
-          <span class="t-name">{currentSong.title}</span>
-          <span class="a-name">{currentSong.artist}</span>
-        </div>
-      {/if}
-    </div>
-
-    <div class="player-controls">
-      <button class="play-btn" onclick={togglePlay}>
-        {isPaused ? "▶" : "⏸"}
-      </button>
-    </div>
-
-    <div class="volume-box">
-      <span class="icon">Vol</span>
-      <input 
-        type="range" 
-        min="0" 
-        max="100" 
-        value={volume}
-        oninput={(e) => {
-          volume = Number((e.target as HTMLInputElement).value);
-          updateVolume();
-        }}
-      />
-    </div>
-  </footer>
 </div>
 
 <style>
-  :global(body) { margin: 0; background: #000; color: white; font-family: 'Inter', sans-serif; overflow: hidden; }
-  
-  .app-container { display: flex; flex-direction: row; height: 100vh; width: 100vw; }
-  
-  .sidebar { width: 260px; background: #000; padding: 1.5rem; border-right: 1px solid #282828; display: flex; flex-direction: column; }
-  .logo { font-size: 1.5rem; margin-bottom: 2rem; color: #1db954; font-weight: 900; }
-  .search-box { display: flex; flex-direction: column; gap: 0.7rem; margin-bottom: 2rem; }
-  
-  input[type="text"] { background: #282828; border: none; border-radius: 4px; padding: 12px; color: white; width: calc(100% - 24px); }
-  .btn-primary { background: #fff; color: #000; font-weight: bold; border: none; padding: 12px; border-radius: 25px; cursor: pointer; transition: transform 0.1s; }
-  .btn-primary:active { transform: scale(0.95); }
-  
-  .nav { display: flex; flex-direction: column; gap: 0.2rem; }
-  .nav-label { font-size: 0.7rem; color: #b3b3b3; letter-spacing: 1px; margin-bottom: 0.8rem; font-weight: bold; }
-  .nav-link { background: none; border: none; color: #b3b3b3; text-align: left; padding: 10px 12px; font-size: 0.9rem; cursor: pointer; border-radius: 4px; transition: 0.2s; }
-  .nav-link:hover { color: #fff; background: #1a1a1a; }
-  .nav-link.active { color: #fff; background: #282828; font-weight: bold; }
-
-  .content { flex: 1; overflow-y: auto; padding: 2rem; padding-bottom: 120px; background: linear-gradient(to bottom, #181818, #121212); }
-  .album-group { margin-bottom: 3.5rem; }
-  .group-title { border-bottom: 1px solid #333; padding-bottom: 0.5rem; margin-bottom: 1.5rem; color: #fff; font-size: 1.4rem; }
-
-  .song-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 1.5rem; }
-  .song-card { background: #181818; border: none; color: white; padding: 15px; border-radius: 8px; cursor: pointer; transition: 0.3s; text-align: left; }
-  .song-card:hover { background: #282828; transform: translateY(-5px); }
-  .song-card.active { background: #333; }
-  .song-card img { width: 100%; aspect-ratio: 1; border-radius: 4px; object-fit: cover; margin-bottom: 10px; box-shadow: 0 8px 16px rgba(0,0,0,0.3); }
-  .no-cover { width: 100%; aspect-ratio: 1; background: #333; border-radius: 4px; display: flex; align-items: center; justify-content: center; font-size: 2.5rem; margin-bottom: 10px; }
-
-  .info .title { display: block; font-weight: bold; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; margin-bottom: 4px; }
-  .info .artist { font-size: 0.8rem; color: #b3b3b3; }
-
-  .player-bar { 
-    position: fixed; bottom: 0; left: 0; right: 0; height: 90px; 
-    background: #121212; border-top: 1px solid #282828; 
-    display: flex; align-items: center; justify-content: space-between; padding: 0 1.5rem;
-    z-index: 100;
+  @keyframes loading {
+    from { transform: translateX(-100%); }
+    to   { transform: translateX(250%); }
   }
-  .current-track { display: flex; align-items: center; gap: 1rem; width: 30%; min-width: 200px; }
-  .mini-art { width: 56px; height: 56px; border-radius: 4px; box-shadow: 0 0 10px rgba(0,0,0,0.5); }
-  .track-meta { display: flex; flex-direction: column; overflow: hidden; }
-  .t-name { font-weight: bold; font-size: 0.9rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .a-name { font-size: 0.75rem; color: #b3b3b3; }
-
-  .player-controls { display: flex; align-items: center; gap: 1.5rem; }
-  .play-btn { background: #fff; border: none; width: 42px; height: 42px; border-radius: 50%; cursor: pointer; font-size: 1rem; transition: transform 0.1s; }
-  .play-btn:hover { transform: scale(1.05); }
-
-  .volume-box { display: flex; align-items: center; gap: 12px; width: 30%; justify-content: flex-end; }
-  input[type="range"] { accent-color: #1db954; cursor: pointer; width: 100px; }
-
-  .empty-state { text-align: center; margin-top: 15vh; color: #b3b3b3; font-size: 1.1rem; }
+  :global(body) { margin:0; padding:0; overflow:hidden; }
+  :global(*) { box-sizing:border-box; }
+  :global(::-webkit-scrollbar) { width:4px; height:4px; }
+  :global(::-webkit-scrollbar-track) { background:transparent; }
+  :global(::-webkit-scrollbar-thumb) { background:rgba(255,255,255,0.15); border-radius:2px; }
+  :global(::-webkit-scrollbar-thumb:hover) { background:rgba(255,255,255,0.3); }
 </style>

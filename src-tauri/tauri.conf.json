@@ -1,25 +1,36 @@
 {
-  "$schema": "https://schema.tauri.app/config/2",
-  "productName": "use0",
+  "productName": "tabi",
   "version": "0.1.0",
-  "identifier": "com.cc.use0",
+  "identifier": "com.tabi.app",
   "build": {
     "beforeDevCommand": "pnpm dev",
-    "devUrl": "http://localhost:1420",
     "beforeBuildCommand": "pnpm build",
+    "devUrl": "http://localhost:1420",
     "frontendDist": "../build"
   },
   "app": {
     "windows": [
       {
-        "title": "use0",
-        "width": 800,
-        "height": 600
+        "title": "tabi",
+        "width": 1200,
+        "height": 800,
+        "minWidth": 900,
+        "minHeight": 600,
+        "resizable": true,
+        "fullscreen": false,
+        "decorations": false,
+        "transparent": false,
+        "center": true
       }
     ],
     "security": {
-      "csp": null
-    }
+      "csp": "default-src 'self'; img-src 'self' asset: https://asset.localhost blob: data:; connect-src 'self' https://* http://* ipc: http://ipc.localhost; style-src 'self' 'unsafe-inline';",
+      "assetProtocol": {
+        "enable": true,
+        "scope": ["**", "$APPDATA/**", "/home/**"]
+      }
+    },
+    "macOSPrivateApi": true
   },
   "bundle": {
     "active": true,
