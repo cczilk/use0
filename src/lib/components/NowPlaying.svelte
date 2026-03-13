@@ -87,7 +87,7 @@
       const ext = selected.split('.').pop().toLowerCase();
       customVideoMime = ext === 'gif' ? 'image/gif' : ext === 'webm' ? 'video/webm' : 'video/mp4';
       // convertFileSrc creates a proper asset:// URL Tauri's webview can serve
-      customVideoPath = convertFileSrc(encodeURI(selected));
+      customVideoPath = convertFileSrc(selected);
       selectedVisualizer = 'custom';
       showVisualizerMenu = false;
     }
@@ -190,7 +190,7 @@
     </div>
   {:else}
     <div style="flex:1; display:flex; align-items:center; justify-content:center; color:{theme.textMuted}; font-size:13px; font-weight:500;">
-      Drop some music to start
+      Drop some musicc to start
     </div>
   {/if}
 </div>
