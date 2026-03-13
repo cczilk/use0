@@ -190,7 +190,7 @@
     </div>
   {:else}
     <div style="flex:1; display:flex; align-items:center; justify-content:center; color:{theme.textMuted}; font-size:13px; font-weight:500;">
-      Drop some musicc to start
+      Drop some music to start
     </div>
   {/if}
 </div>
